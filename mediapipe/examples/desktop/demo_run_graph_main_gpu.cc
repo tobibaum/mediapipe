@@ -21,6 +21,7 @@
 #include "mediapipe/framework/calculator_framework.h"
 #include "mediapipe/framework/formats/image_frame.h"
 #include "mediapipe/framework/formats/image_frame_opencv.h"
+#include "mediapipe/framework/formats/landmark.pb.h"
 #include "mediapipe/framework/port/file_helpers.h"
 #include "mediapipe/framework/port/opencv_highgui_inc.h"
 #include "mediapipe/framework/port/opencv_imgproc_inc.h"
@@ -33,6 +34,8 @@
 
 constexpr char kInputStream[] = "input_video";
 constexpr char kOutputStream[] = "output_video";
+constexpr char kOutputStreamLandmarks[] = "pose_landmarks";
+constexpr char kOutputStreamPresence[] = "landmark_presence";
 constexpr char kWindowName[] = "MediaPipe";
 
 ABSL_FLAG(std::string, calculator_graph_config_file, "",
@@ -89,6 +92,11 @@ absl::Status RunMPPGraph() {
   LOG(INFO) << "Start running the calculator graph.";
   ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller poller,
                    graph.AddOutputStreamPoller(kOutputStream));
+  ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller poller_landmarks,
+                   graph.AddOutputStreamPoller(kOutputStreamLandmarks));
+  ASSIGN_OR_RETURN(mediapipe::OutputStreamPoller poller_presence,
+                   graph.AddOutputStreamPoller(kOutputStreamPresence));
+
   MP_RETURN_IF_ERROR(graph.StartRun({}));
 
   LOG(INFO) << "Start grabbing and processing frames.";
@@ -137,9 +145,26 @@ absl::Status RunMPPGraph() {
         }));
 
     // Get the graph result packet, or stop if that fails.
-    mediapipe::Packet packet;
+    mediapipe::Packet packet, packet_landmarks, packet_presence;
     if (!poller.Next(&packet)) break;
     std::unique_ptr<mediapipe::ImageFrame> output_frame;
+
+    // ==== MY STUFF ====
+    std::cout << "this blocks" << std::endl;
+    if (!poller_presence.Next(&packet_presence)) break;
+    bool saw_landmarks = packet_presence.Get<bool>();
+
+    if(saw_landmarks){
+        if (!poller_landmarks.Next(&packet_landmarks)) break;
+        std::cout << "yes indeed" << std::endl;
+        auto& landmark_list = packet_landmarks.Get<mediapipe::NormalizedLandmarkList>();
+
+        std::cout << landmark_list.landmark_size() << std::endl;
+        std::cout << landmark_list.landmark(0).x() << std::endl;
+
+        std::cout << "." << std::endl;
+    }
+    // ==== MY STUFF ====
 
     // Convert GpuBuffer to ImageFrame.
     MP_RETURN_IF_ERROR(gpu_helper.RunInGlContext(
@@ -181,6 +206,7 @@ absl::Status RunMPPGraph() {
       const int pressed_key = cv::waitKey(5);
       if (pressed_key >= 0 && pressed_key != 255) grab_frames = false;
     }
+
   }
 
   LOG(INFO) << "Shutting down.";

@@ -7,6 +7,7 @@ input_stream: "input_video"
 output_stream: "output_video"
 # Pose landmarks. (NormalizedLandmarkList)
 output_stream: "pose_landmarks"
+output_stream: "landmark_presence"
 
 # Generates side packet to enable segmentation.
 node {
@@ -46,10 +47,12 @@ node {
   input_side_packet: "ENABLE_SEGMENTATION:enable_segmentation"
   input_stream: "IMAGE:throttled_input_video"
   output_stream: "LANDMARKS:pose_landmarks"
+  output_stream: "WORLD_LANDMARKS:pose_world_landmarks"
   output_stream: "SEGMENTATION_MASK:segmentation_mask"
   output_stream: "DETECTION:pose_detection"
   output_stream: "ROI_FROM_LANDMARKS:roi_from_landmarks"
 }
+
 
 # Subgraph that renders pose-landmark annotation onto the input image.
 node {
@@ -60,4 +63,10 @@ node {
   input_stream: "DETECTION:pose_detection"
   input_stream: "ROI:roi_from_landmarks"
   output_stream: "IMAGE:output_video"
+}
+
+node {
+  calculator: "PacketPresenceCalculator"
+  input_stream: "PACKET:pose_landmarks"
+  output_stream: "PRESENCE:landmark_presence"
 }
