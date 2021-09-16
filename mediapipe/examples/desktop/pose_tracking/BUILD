@@ -32,3 +32,11 @@ cc_binary(
         "//mediapipe/graphs/pose_tracking:pose_tracking_gpu_deps",
     ],
 )
+
+cc_binary(
+    name = "pose_tracking_gpu_original",
+    deps = [
+        "//mediapipe/examples/desktop:demo_run_graph_main_gpu_original",
+        "//mediapipe/graphs/pose_tracking:pose_tracking_gpu_deps",
+    ],
+)

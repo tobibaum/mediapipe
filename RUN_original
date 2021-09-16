@@ -1,0 +1,1 @@
+bazel-bin/mediapipe/examples/desktop/pose_tracking/pose_tracking_gpu_original --calculator_graph_config_file=mediapipe/graphs/pose_tracking/pose_tracking_gpu.pbtxt
