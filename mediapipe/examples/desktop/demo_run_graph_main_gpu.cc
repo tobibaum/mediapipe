@@ -31,6 +31,10 @@
 #include "mediapipe/gpu/gl_calculator_helper.h"
 #include "mediapipe/gpu/gpu_buffer.h"
 #include "mediapipe/gpu/gpu_shared_data_internal.h"
+#include <boost/interprocess/ipc/message_queue.hpp>
+
+#define IMG_WIDTH 1280
+#define IMG_HEIGHT 720
 
 constexpr char kInputStream[] = "input_video";
 constexpr char kOutputStream[] = "output_video";
@@ -101,9 +105,26 @@ absl::Status RunMPPGraph() {
 
   LOG(INFO) << "Start grabbing and processing frames.";
   bool grab_frames = true;
+
+  int size_res = 891;
+  int size = IMG_WIDTH*IMG_HEIGHT*3;
+
+  using namespace boost::interprocess;
+  message_queue::remove("img_queue");
+  message_queue::remove("res_queue");
+  message_queue mq(open_or_create, "img_queue", 4, size);
+  message_queue mq_res(open_or_create, "res_queue", 4, size_res);
+
+  unsigned char* img_data = (unsigned char*) malloc(size);
+  void* res = malloc(size_res);
+  mediapipe::NormalizedLandmarkList landmark_list;
+
   while (grab_frames) {
+    /*
     // Capture opencv camera or video frame.
     cv::Mat camera_frame_raw;
+    // ===== inject image here! =====
+    // ===== inject image here! =====
     capture >> camera_frame_raw;
     if (camera_frame_raw.empty()) {
       if (!load_video) {
@@ -113,6 +134,12 @@ absl::Status RunMPPGraph() {
       LOG(INFO) << "Empty frame, end of video reached.";
       break;
     }
+    */
+    message_queue::size_type recvd_size;
+    unsigned int priority;
+    mq.receive(img_data, size, recvd_size, priority);
+    cv::Mat camera_frame_raw(IMG_HEIGHT, IMG_WIDTH, 16, img_data);
+
     cv::Mat camera_frame;
     cv::cvtColor(camera_frame_raw, camera_frame, cv::COLOR_BGR2RGBA);
     if (!load_video) {
@@ -150,20 +177,15 @@ absl::Status RunMPPGraph() {
     std::unique_ptr<mediapipe::ImageFrame> output_frame;
 
     // ==== MY STUFF ====
-    std::cout << "this blocks" << std::endl;
     if (!poller_presence.Next(&packet_presence)) break;
     bool saw_landmarks = packet_presence.Get<bool>();
 
     if(saw_landmarks){
         if (!poller_landmarks.Next(&packet_landmarks)) break;
-        std::cout << "yes indeed" << std::endl;
-        auto& landmark_list = packet_landmarks.Get<mediapipe::NormalizedLandmarkList>();
-
-        std::cout << landmark_list.landmark_size() << std::endl;
-        std::cout << landmark_list.landmark(0).x() << std::endl;
-
-        std::cout << "." << std::endl;
-    }
+        landmark_list = packet_landmarks.Get<mediapipe::NormalizedLandmarkList>();
+    } 
+    landmark_list.SerializeToArray(res, size_res);
+    mq_res.send(res, size_res, 0);
     // ==== MY STUFF ====
 
     // Convert GpuBuffer to ImageFrame.
